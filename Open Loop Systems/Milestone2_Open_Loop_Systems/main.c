@@ -41,11 +41,15 @@ int main(void) {
     __bis_SR_register(GIE); //low power mode and interrupt enabled
 
     while (1) {
-        ADC10CTL0 |= ENC + ADC10SC;             // Sampling and conversion start
-        if(temp >= ADC10MEM * 75 / 512 - 50)    //Checks to see if the temperature is equal to the requested
-            TA1CCR1 = 0;
-        else
-            TA1CCR1 = 255;
+        int i;
+        for (i = 0; i < 5000; i++);
+        if (temp >= ADC10MEM * 75 / 512 - 50) {
+            if (TA1CCR1 > 0)
+                TA1CCR1 -= 1;
+        } else {
+            if (TA1CCR1 < 255)
+                TA1CCR1 += 1;
+        }
     }
 }
 
@@ -55,12 +59,10 @@ __interrupt void RXInterrupt(void) {
     temp = UCA0RXBUF;
     UCA0TXBUF = ADC10MEM * 75 / 512 - 50;
     IFG2 = 0x00;
-
 }
 
 #pragma vector=TIMER0_A0_VECTOR
 __interrupt void ta0_isr(void) {
     TACTL = 0;
     LPM0_EXIT;                                // Exit LPM0 on return
-
 }
