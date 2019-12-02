@@ -1,26 +1,27 @@
 #include <msp430.h>
 
 int temp = 0;
+int count = 0;
 
 int main(void) {
     WDTCTL = WDTPW + WDTHOLD;                 // Stop WDT
     ADC10CTL1 = SHS_1 + CONSEQ_2 + INCH_0;    // TA1 trigger sample start
-    ADC10CTL0 = SREF_1 + ADC10SHT_2 + REFON + ADC10ON;
+    ADC10CTL0 = SREF_1 + ADC10SHT_2 + REFON + ADC10ON + ADC10IE;
     __enable_interrupt();                     // Enable interrupts.
 
-    TACCR0 = 30;                              // Delay to allow Ref to settle
-    TACCTL0 |= CCIE;                          // Compare-mode interrupt.
-    TACTL = TASSEL_2 + MC_1;                  // TACLK = SMCLK, Up mode.
+    TA0CCR0 = 30;                              // Delay to allow Ref to settle
+    TA0CCTL0 |= CCIE;                          // Compare-mode interrupt.
+    TA0CTL = TASSEL_2 + MC_1;                  // TACLK = SMCLK, Up mode.
     LPM0;                                     // Wait for delay.
-    TACCTL0 &= ~CCIE;                         // Disable timer Interrupt
+    TA0CCTL0 &= ~CCIE;                         // Disable timer Interrupt
     __disable_interrupt();
 
     ADC10CTL0 |= ENC;                         // ADC10 Enable
     ADC10AE0 |= BIT0;                         // P1.1 ADC10 option select
-    TACCR0 = 2048-1;                          // PWM Period
-    TACCTL1 = OUTMOD_3;                       // TACCR1 set/reset
-    TACCR1 = 2047;                            // TACCR1 PWM Duty Cycle
-    TACTL = TASSEL_1 + MC_1;                  // ACLK, up mode
+    TA0CCR0 = 2048-1;                          // PWM Period
+    TA0CCTL1 = OUTMOD_3;                       // TACCR1 set/reset
+    TA0CCR1 = 2047;                            // TACCR1 PWM Duty Cycle
+    TA0CTL = TASSEL_1 + MC_1;                  // ACLK, up mode
 
     P1SEL |= BIT1 + BIT2;               //P1.1 = RXD P1.2 = TXD
     P1SEL2 |= BIT1 + BIT2;              //P1.1 = RXD P1.2 = TXD
@@ -36,11 +37,11 @@ int main(void) {
     TA1CTL |= TASSEL_2 + MC_1;          //set smclk, up mode
     TA1CCTL1 |= OUTMOD_7;               //set/reset output
     TA1CCR0 = 255;                      //pwm period
-    TA1CCR1 = 0;                        //initialize green pwm
+    TA1CCR1 = 0;                        //initialize green pwm*/
 
     __bis_SR_register(GIE); //low power mode and interrupt enabled
 
-    while (1) {
+    /*while (1) {
         int i;
         for (i = 0; i < 5000; i++);
         if (temp >= ADC10MEM * 75 / 512 - 50) {
@@ -50,6 +51,24 @@ int main(void) {
             if (TA1CCR1 < 255)
                 TA1CCR1 += 1;
         }
+    }*/
+}
+
+#pragma vector = ADC10_VECTOR
+__interrupt void ADC10_ISR(void) {
+    if (temp >= ADC10MEM * 75 / 512 - 50) {
+        if (TA1CCR1 > 0)
+            TA1CCR1 -= 1;
+    } else {
+        if (TA1CCR1 < 255)
+            TA1CCR1 += 1;
+    }
+    if (count >= 15) {
+        count = 0;
+        while (!(IFG2 & UCA0TXIFG));
+        UCA0TXBUF = ADC10MEM * 75 / 512 - 50;
+    } else {
+        count++;
     }
 }
 
@@ -63,6 +82,6 @@ __interrupt void RXInterrupt(void) {
 
 #pragma vector=TIMER0_A0_VECTOR
 __interrupt void ta0_isr(void) {
-    TACTL = 0;
+    TA0CTL = 0;
     LPM0_EXIT;                                // Exit LPM0 on return
 }
